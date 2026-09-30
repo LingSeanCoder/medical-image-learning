@@ -1,0 +1,920 @@
+# Day 6 — Mini Project: Linear Regression từ đầu
+
+## 1. Mục tiêu
+
+Tự xây dựng một mini-project Machine Learning hoàn chỉnh để học:
+
+$$
+y=ax+b+\varepsilon
+$$
+
+Trong đó:
+
+* \(a\): slope / coefficient.
+* \(b\): intercept / bias.
+* \(\varepsilon\): noise.
+* Model cần học \(a\) và \(b\) từ dữ liệu.
+
+Project phải có:
+
+* Random seed.
+* Training set và validation set riêng biệt.
+* `nn.Linear`.
+* `MSELoss`.
+* Optimizer.
+* Training loop.
+* Evaluation không tính gradient.
+* Train loss và validation loss.
+* Loss curve.
+* Prediction figure.
+* Summary kết quả.
+* Lưu các figure ra file.
+
+---
+
+# 2. Project Pipeline
+
+Toàn bộ project:
+
+```text
+Set seed
+   ↓
+Generate data
+   ↓
+Train / Validation split
+   ↓
+Create model
+   ↓
+Create loss function
+   ↓
+Create optimizer
+   ↓
+Training loop
+   ↓
+Validation
+   ↓
+Save loss history
+   ↓
+Plot loss curves
+   ↓
+Plot predictions
+   ↓
+Print summary
+```
+
+Đây chính là phiên bản đơn giản của workflow Deep Learning thực tế.
+
+---
+
+# 3. Dataset
+
+Ta tạo dữ liệu theo:
+
+$$
+y=3x+2+\varepsilon
+$$
+
+Mục tiêu:
+
+```text
+a ≈ 3
+b ≈ 2
+```
+
+Noise làm cho dữ liệu không nằm hoàn toàn trên một đường thẳng.
+
+---
+
+# 4. Complete Mini Project
+
+> Cố gắng tự viết trước. Chỉ xem code bên dưới để kiểm tra sau khi hoàn thành.
+
+```python
+import torch
+import torch.nn as nn
+import matplotlib.pyplot as plt
+
+
+# ============================================================
+# 1. Set random seed
+# ============================================================
+torch.manual_seed(42)
+
+
+# ============================================================
+# 2. Generate dataset
+# ============================================================
+# True relationship:
+# y = 3x + 2 + noise
+
+x = torch.linspace(-5, 5, 200).unsqueeze(1)
+
+noise = 0.5 * torch.randn_like(x)
+
+y = 3.0 * x + 2.0 + noise
+
+
+# ============================================================
+# 3. Train / validation split
+# ============================================================
+# Use the first 160 samples for training
+# Use the remaining 40 samples for validation
+
+train_size = 160
+
+x_train = x[:train_size]
+y_train = y[:train_size]
+
+x_val = x[train_size:]
+y_val = y[train_size:]
+
+
+print("Train shape:")
+print("x_train:", x_train.shape)
+print("y_train:", y_train.shape)
+
+print("\nValidation shape:")
+print("x_val:", x_val.shape)
+print("y_val:", y_val.shape)
+
+
+# ============================================================
+# 4. Create model
+# ============================================================
+# Linear regression:
+# y = wx + b
+
+model = nn.Linear(1, 1)
+
+
+# ============================================================
+# 5. Loss function
+# ============================================================
+criterion = nn.MSELoss()
+
+
+# ============================================================
+# 6. Optimizer
+# ============================================================
+optimizer = torch.optim.SGD(
+    model.parameters(),
+    lr=0.05
+)
+
+
+# ============================================================
+# 7. Training configuration
+# ============================================================
+epochs = 500
+
+train_losses = []
+val_losses = []
+
+
+# ============================================================
+# 8. Training loop
+# ============================================================
+for epoch in range(epochs):
+
+    # --------------------------------------------------------
+    # Training mode
+    # --------------------------------------------------------
+    model.train()
+
+    # Forward pass
+    train_pred = model(x_train)
+
+    # Calculate training loss
+    train_loss = criterion(train_pred, y_train)
+
+    # Clear old gradients
+    optimizer.zero_grad()
+
+    # Calculate gradients
+    train_loss.backward()
+
+    # Update parameters
+    optimizer.step()
+
+
+    # --------------------------------------------------------
+    # Validation
+    # --------------------------------------------------------
+    # No gradient calculation is needed during validation
+    model.eval()
+
+    with torch.no_grad():
+
+        val_pred = model(x_val)
+
+        val_loss = criterion(
+            val_pred,
+            y_val
+        )
+
+
+    # --------------------------------------------------------
+    # Save losses
+    # --------------------------------------------------------
+    train_losses.append(train_loss.item())
+    val_losses.append(val_loss.item())
+
+
+    # --------------------------------------------------------
+    # Print progress
+    # --------------------------------------------------------
+    if epoch % 100 == 0:
+
+        print(
+            f"Epoch {epoch:03d} | "
+            f"Train Loss: {train_loss.item():.4f} | "
+            f"Val Loss: {val_loss.item():.4f}"
+        )
+
+
+# ============================================================
+# 9. Get learned parameters
+# ============================================================
+weight = model.weight.item()
+bias = model.bias.item()
+
+
+# ============================================================
+# 10. Final evaluation
+# ============================================================
+model.eval()
+
+with torch.no_grad():
+
+    train_pred = model(x_train)
+    val_pred = model(x_val)
+
+    final_train_loss = criterion(
+        train_pred,
+        y_train
+    ).item()
+
+    final_val_loss = criterion(
+        val_pred,
+        y_val
+    ).item()
+
+
+# ============================================================
+# 11. Plot train / validation loss
+# ============================================================
+plt.figure(figsize=(7, 4))
+
+plt.plot(
+    train_losses,
+    label="Train Loss"
+)
+
+plt.plot(
+    val_losses,
+    label="Validation Loss"
+)
+
+plt.xlabel("Epoch")
+plt.ylabel("MSE Loss")
+plt.title("Training and Validation Loss")
+
+plt.legend()
+plt.grid(True)
+
+plt.savefig(
+    "loss_curve.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+
+# ============================================================
+# 12. Plot predictions
+# ============================================================
+with torch.no_grad():
+
+    all_pred = model(x)
+
+
+plt.figure(figsize=(7, 4))
+
+plt.scatter(
+    x_train.numpy(),
+    y_train.numpy(),
+    s=15,
+    label="Train Data"
+)
+
+plt.scatter(
+    x_val.numpy(),
+    y_val.numpy(),
+    s=15,
+    label="Validation Data"
+)
+
+plt.plot(
+    x.numpy(),
+    all_pred.numpy(),
+    label="Model Prediction"
+)
+
+plt.xlabel("x")
+plt.ylabel("y")
+plt.title("Linear Regression Prediction")
+
+plt.legend()
+plt.grid(True)
+
+plt.savefig(
+    "prediction.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+
+# ============================================================
+# 13. Summary
+# ============================================================
+print("\n" + "=" * 50)
+print("PROJECT SUMMARY")
+print("=" * 50)
+
+print(f"True function:       y = 3x + 2 + noise")
+print(f"Learned weight:      {weight:.4f}")
+print(f"Learned bias:        {bias:.4f}")
+print(f"Final train loss:    {final_train_loss:.4f}")
+print(f"Final validation loss: {final_val_loss:.4f}")
+
+print("\nSaved figures:")
+print("- loss_curve.png")
+print("- prediction.png")
+```
+
+---
+
+# 5. Giải thích từng phần
+
+## 5.1. Random Seed
+
+```python
+torch.manual_seed(42)
+```
+
+Random seed giúp kết quả có thể tái lập.
+
+Nếu không đặt seed, mỗi lần tạo noise sẽ khác nhau.
+
+```text
+Same seed
+   ↓
+Same random sequence
+   ↓
+Same dataset
+   ↓
+More reproducible experiment
+```
+
+---
+
+# 6. Generate Dataset
+
+```python
+x = torch.linspace(-5, 5, 200).unsqueeze(1)
+
+noise = 0.5 * torch.randn_like(x)
+
+y = 3.0 * x + 2.0 + noise
+```
+
+Ta đang tạo:
+
+$$
+y=3x+2+\varepsilon
+$$
+
+Trong đó:
+
+```text
+3.0 → true weight
+2.0 → true bias
+noise → ε
+```
+
+Model không được cho biết `3.0` và `2.0`.
+
+Nó phải học chúng từ data.
+
+---
+
+# 7. Train / Validation Split
+
+Ta có 200 samples:
+
+```text
+200 samples
+├── 160 → Training
+└── 40  → Validation
+```
+
+Code:
+
+```python
+x_train = x[:160]
+y_train = y[:160]
+
+x_val = x[160:]
+y_val = y[160:]
+```
+
+## Training set
+
+Được sử dụng để:
+
+* tính loss;
+* tính gradient;
+* update model parameters.
+
+## Validation set
+
+Không dùng để update parameters.
+
+Dùng để kiểm tra model hoạt động như thế nào trên dữ liệu không được dùng trực tiếp để training.
+
+---
+
+# 8. Model
+
+```python
+model = nn.Linear(1, 1)
+```
+
+Model học:
+
+$$
+\hat y=wx+b
+$$
+
+Ban đầu:
+
+$$
+w,b
+$$
+
+được khởi tạo chưa đúng.
+
+Training sẽ điều chỉnh chúng để:
+
+$$
+w\approx3
+$$
+
+và:
+
+$$
+b\approx2
+$$
+
+---
+
+# 9. Loss
+
+```python
+criterion = nn.MSELoss()
+```
+
+Training loss:
+
+$$
+L_{train}
+=
+\frac{1}{N}
+\sum
+(\hat y-y)^2
+$$
+
+Validation loss:
+
+$$
+L_{val}
+=
+\frac{1}{N_{val}}
+\sum
+(\hat y-y)^2
+$$
+
+Mục tiêu là làm cho loss giảm.
+
+---
+
+# 10. Training Loop
+
+Đây là phần quan trọng nhất.
+
+```python
+for epoch in range(epochs):
+```
+
+Mỗi epoch model thực hiện:
+
+```text
+Forward
+   ↓
+Calculate loss
+   ↓
+Zero gradient
+   ↓
+Backward
+   ↓
+Update parameters
+   ↓
+Validation
+```
+
+Code:
+
+```python
+train_pred = model(x_train)
+
+train_loss = criterion(
+    train_pred,
+    y_train
+)
+
+optimizer.zero_grad()
+
+train_loss.backward()
+
+optimizer.step()
+```
+
+---
+
+# 11. Evaluation không tính gradient
+
+Validation:
+
+```python
+model.eval()
+
+with torch.no_grad():
+
+    val_pred = model(x_val)
+
+    val_loss = criterion(
+        val_pred,
+        y_val
+    )
+```
+
+Có hai ý quan trọng.
+
+## `model.eval()`
+
+Chuyển model sang evaluation mode.
+
+Điều này đặc biệt quan trọng với các layer như:
+
+* Dropout.
+* Batch Normalization.
+
+## `torch.no_grad()`
+
+Nói với PyTorch:
+
+> Không cần theo dõi gradient trong đoạn code này.
+
+Validation không update parameters nên không cần gradient.
+
+---
+
+# 12. Train Loss vs Validation Loss
+
+Ta lưu:
+
+```python
+train_losses.append(train_loss.item())
+val_losses.append(val_loss.item())
+```
+
+Sau đó vẽ:
+
+```python
+plt.plot(train_losses)
+plt.plot(val_losses)
+```
+
+Loss curve cho phép quan sát training dynamics.
+
+---
+
+# 13. Đọc Loss Curve
+
+Một trường hợp tốt:
+
+```text
+Loss
+│\
+│ \
+│  \
+│   \____
+│
+└──────────── Epoch
+```
+
+Train và validation loss đều giảm.
+
+---
+
+## Trường hợp overfitting
+
+Có thể xuất hiện:
+
+```text
+Train loss:
+───────────────→ rất thấp
+
+Validation loss:
+───────\___/^^^^
+```
+
+Nghĩa là:
+
+```text
+Train loss ↓
+Validation loss ↑
+```
+
+Model đang học quá sát training data và khả năng generalization giảm.
+
+Trong project này, vì model chỉ là linear regression rất đơn giản nên overfitting không phải vấn đề chính. Nhưng pattern này sẽ cực kỳ quan trọng khi bạn học CNN/Transformer.
+
+---
+
+# 14. Prediction Figure
+
+Ta vẽ:
+
+```text
+Train data
+Validation data
+Model prediction
+```
+
+Mục đích:
+
+> Không chỉ nhìn một con số loss mà còn trực tiếp kiểm tra model có học đúng relationship hay không.
+
+Nếu model học tốt, đường prediction sẽ gần với xu hướng của data.
+
+---
+
+# 15. Learned Parameters
+
+Cuối cùng:
+
+```python
+weight = model.weight.item()
+bias = model.bias.item()
+```
+
+Ta mong đợi:
+
+```text
+True:
+weight ≈ 3
+bias   ≈ 2
+
+Learned:
+weight ≈ 3
+bias   ≈ 2
+```
+
+Không nhất thiết chính xác bằng 3 và 2 vì dữ liệu có noise.
+
+---
+
+# 16. Tại sao cần cả Train và Validation?
+
+Nếu chỉ có training loss:
+
+```text
+Model → Training data → Loss
+```
+
+ta chỉ biết model học tốt trên dữ liệu training.
+
+Validation cho ta thêm:
+
+```text
+Model
+├── Training data → Train loss
+└── Unseen validation data → Validation loss
+```
+
+Điều này giúp đánh giá khả năng **generalization**.
+
+Generalization = khả năng model hoạt động tốt trên dữ liệu mới.
+
+---
+
+# 17. Tại sao đây là mini version của Deep Learning project?
+
+Project này đã có gần như toàn bộ skeleton:
+
+```text
+Dataset
+   ↓
+Train / Validation split
+   ↓
+Model
+   ↓
+Loss
+   ↓
+Optimizer
+   ↓
+Training
+   ↓
+Validation
+   ↓
+Metrics / Loss
+   ↓
+Visualization
+   ↓
+Summary
+```
+
+Sau này với một bài toán Medical Imaging:
+
+```text
+Chest X-ray
+   ↓
+Dataset
+   ↓
+Train / Validation / Test
+   ↓
+CNN / Vision Transformer
+   ↓
+CrossEntropyLoss
+   ↓
+Adam
+   ↓
+Training
+   ↓
+Validation
+   ↓
+Accuracy / Precision / Recall / F1 / AUC
+   ↓
+Confusion Matrix / ROC
+   ↓
+Final evaluation
+```
+
+Skeleton gần như không thay đổi.
+
+Chỉ có model, dataset và evaluation metrics phức tạp hơn.
+
+---
+
+# 18. Checklist tự kiểm tra
+
+Sau khi hoàn thành project, kiểm tra:
+
+```text
+[✓] Random seed
+[✓] Generate dataset
+[✓] Train/Validation split
+[✓] nn.Linear
+[✓] MSELoss
+[✓] Optimizer
+[✓] Training loop
+[✓] optimizer.zero_grad()
+[✓] loss.backward()
+[✓] optimizer.step()
+[✓] model.eval()
+[✓] torch.no_grad()
+[✓] Train loss
+[✓] Validation loss
+[✓] Loss curve
+[✓] Prediction figure
+[✓] Save figures
+[✓] Learned parameters
+[✓] Final summary
+```
+
+---
+
+# 19. Những thứ cần tự viết lại mà không nhìn code
+
+Nếu muốn Day 6 thực sự có giá trị, hãy đóng notebook/code mẫu lại và tự viết được:
+
+### Part 1
+
+```python
+torch.manual_seed(...)
+```
+
+### Part 2
+
+```python
+x = ...
+noise = ...
+y = ...
+```
+
+### Part 3
+
+```python
+x_train = ...
+x_val = ...
+```
+
+### Part 4
+
+```python
+model = nn.Linear(...)
+criterion = nn.MSELoss()
+optimizer = ...
+```
+
+### Part 5
+
+```python
+for epoch in range(...):
+    ...
+```
+
+### Part 6
+
+```python
+model.eval()
+
+with torch.no_grad():
+    ...
+```
+
+### Part 7
+
+```python
+plt.plot(...)
+plt.savefig(...)
+```
+
+### Part 8
+
+```python
+print(...)
+```
+
+Nếu tự viết được toàn bộ 8 phần trên, bạn đã nắm được workflow cơ bản.
+
+---
+
+# 20. Final Mental Model
+
+```text
+                    DATA
+                      │
+                      ▼
+              Train / Validation
+                      │
+          ┌───────────┴───────────┐
+          ▼                       ▼
+       TRAIN                    VALIDATION
+          │                       │
+          ▼                       ▼
+       MODEL                   MODEL
+          │                       │
+          ▼                       ▼
+     Prediction              Prediction
+          │                       │
+          ▼                       ▼
+      Train Loss              Val Loss
+          │                       │
+          ▼                       │
+     backward()                   │
+          │                       │
+          ▼                       │
+     optimizer.step()             │
+          │                       │
+          └───────────┬───────────┘
+                      ▼
+                 Loss Curves
+                      │
+                      ▼
+                 Evaluation
+                      │
+          ┌───────────┴───────────┐
+          ▼                       ▼
+   Prediction Figure         Summary
+```
+
+## Câu quan trọng nhất của Day 6
+
+> **Một Deep Learning project không chỉ là xây model; nó là một pipeline gồm data → training → validation → evaluation → visualization → reporting.**
+
+Day 6 chính là lần đầu tiên ghép toàn bộ kiến thức từ **Day 1 → Day 5** thành một project hoàn chỉnh.
